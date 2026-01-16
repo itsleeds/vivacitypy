@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vivacitypy"
+version = "0.1.0"
+description = "A Python client for the Vivacity Labs Traffic Data API"
+readme = "README.md"
+authors = [{ name = "Robin Lovelace", email = "robin.lovelace@leeds.ac.uk" }]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "httpx>=0.24.0",
+    "pandas>=1.5.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/itsleeds/vivacitypy"
+"Bug Tracker" = "https://github.com/itsleeds/vivacitypy/issues"

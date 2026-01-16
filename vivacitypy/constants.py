@@ -1,0 +1,21 @@
+# Mapping from Vivacity modes to unified modes
+VIVACITY_TO_UNIFIED = {
+    "pedestrian": "walking",
+    "bike": "cycling",
+    "cyclist": "cycling",
+    "car": "car",
+    "motorcycle": "other",
+    "motorbike": "other",
+    "taxi": "car",
+    "bus": "heavy",
+    "lgv": "heavy",
+    "hgv": "heavy",
+    "rigid": "heavy",
+    "truck": "heavy",
+    "van": "heavy",
+    "minibus": "heavy",
+    "escooter": "escooter",
+    "emergency_car": "heavy",
+    "emergency_van": "heavy",
+    "fire_engine": "heavy",
+}
