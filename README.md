@@ -10,12 +10,14 @@ pip install git+https://github.com/itsleeds/vivacitypy.git
 
 ## Usage
 
+### Basic Usage
+
 ```python
 import asyncio
 from vivacitypy import VivacityClient
 
 async def main():
-    async with VivacityClient(region_code="wyca") as client:
+    async with VivacityClient(region_code="anytown") as client:
         # Get sensor metadata
         sensors = await client.get_countline_metadata()
         print(f"Found {len(sensors)} sensors")
@@ -24,7 +26,49 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+### Fetching Traffic Data
+
+#### 1. Summed Data (Default)
+Useful for general analysis and compatibility with legacy tools.
+
+```python
+df = await client.fetch_region_traffic(
+    sensor_ids=["99001"], 
+    start_time=start, 
+    end_time=end, 
+    region_name="anytown",
+    bidirectional=True  # Default
+)
+```
+
+**Output Structure:**
+| timestamp | sensor_id | mode | count | v85 | region | source |
+|-----------|-----------|------|-------|-----|--------|--------|
+| 2026-01-01 12:00:00 | 99001 | car | 45 | None | anytown | vivacity |
+| 2026-01-01 12:00:00 | 99001 | bike | 7 | None | anytown | vivacity |
+| 2026-01-01 13:00:00 | 99001 | car | 38 | None | anytown | vivacity |
+
+#### 2. Directional Data
+Retrieves raw counts for each direction independently.
+
+```python
+df = await client.fetch_region_traffic(
+    sensor_ids=["99001"], 
+    start_time=start, 
+    end_time=end, 
+    region_name="anytown",
+    bidirectional=False
+)
+```
+
+**Output Structure:**
+| timestamp | sensor_id | direction | mode | count | region | source |
+|-----------|-----------|-----------|------|-------|--------|--------|
+| 2026-01-01 12:00:00 | 99001 | clockwise | car | 20 | anytown | vivacity |
+| 2026-01-01 12:00:00 | 99001 | anti_clockwise | car | 25 | anytown | vivacity |
+| 2026-01-01 12:00:00 | 99001 | clockwise | bike | 3 | anytown | vivacity |
+
 ## Environment Variables
 
-The client expects your API key to be stored in an environment variable named `VIVACITY_{REGION_CODE}` (e.g., `VIVACITY_WYCA`).
+The client expects your API key to be stored in an environment variable named `VIVACITY_{REGION_CODE}` (e.g., `VIVACITY_ANYTOWN`).
 Alternatively, you can pass the `api_key` directly to the constructor.

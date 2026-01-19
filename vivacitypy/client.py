@@ -124,6 +124,8 @@ class VivacityClient:
                 "description": item.get("description", ""),
                 "is_speed": item.get("is_speed", False),
                 "geometry": geometry,
+                "hardware_id": item.get("hardware_id"),
+                "viewpoint_id": item.get("viewpoint_id"),
             })
         
         return countlines
@@ -135,7 +137,9 @@ class VivacityClient:
         - id: Hardware ID
         - name: Hardware name
         - lat: Latitude
-        - lon: Longitude
+        - lon: Longitude (from 'long' field in API)
+        - project_name: Project name
+        - hardware_version: Version
         """
         resp = await self.client.get(f"{self.base_url}/hardware/metadata")
         resp.raise_for_status()
@@ -143,13 +147,14 @@ class VivacityClient:
         data = resp.json()
         hardware = []
         
-        for item in data:
+        for hw_id, item in data.items():
             hardware.append({
-                "id": item.get("id"),
-                "legacy_id": item.get("legacy_id"),
+                "id": hw_id,
                 "name": item.get("name"),
-                "lat": item.get("location", {}).get("lat"),
-                "lon": item.get("location", {}).get("long"),
+                "lat": item.get("lat"),
+                "lon": item.get("long"),  # API uses 'long'
+                "project_name": item.get("project_name"),
+                "hardware_version": item.get("hardware_version"),
             })
         
         return hardware
@@ -160,6 +165,7 @@ class VivacityClient:
         start_time: datetime,
         end_time: datetime,
         time_bucket: str = "1h",
+        bidirectional: bool = True,
     ) -> list[dict]:
         """Fetch counts for countlines within a time range.
         
@@ -168,15 +174,16 @@ class VivacityClient:
             start_time: Start of time range
             end_time: End of time range
             time_bucket: Aggregation bucket (e.g., "1h", "24h")
+            bidirectional: If True, sums clockwise and anti_clockwise counts.
+                           If False, preserves direction in output.
             
         Returns:
-            List of count records with timestamp, countline_id, class, direction, count
+            List of count records.
         """
         # Vivacity API limits to 7 days per request
         date_batches = batch_date_range(start_time, end_time, max_days=7)
         
         # Also batch countline_ids to avoid too long URLs and timeouts
-        # 50 sensors at a time is a safe bet
         id_batches = [countline_ids[i:i + 50] for i in range(0, len(countline_ids), 50)]
         
         all_records = []
@@ -226,6 +233,7 @@ class VivacityClient:
                                     
                                     all_records.append({
                                         "countline_id": countline_id,
+                                        "timestamp": from_time,
                                         "from": from_time,
                                         "to": to_time,
                                         "direction": direction,
@@ -237,6 +245,18 @@ class VivacityClient:
                     print(f"Error fetching counts for batch: {e}")
                     continue
         
+        if bidirectional:
+            # Aggregate to sum directions
+            df = pd.DataFrame(all_records)
+            if df.empty:
+                return []
+            
+            # Group by everything except direction and count, then sum count
+            df_agg = df.groupby(["countline_id", "timestamp", "from", "to", "class", "mode"]).agg({
+                "count": "sum"
+            }).reset_index()
+            return df_agg.to_dict(orient="records")
+            
         return all_records
 
     async def get_speed(
@@ -312,6 +332,7 @@ class VivacityClient:
         end_time: datetime,
         region_name: str,
         time_bucket: str = "1h",
+        bidirectional: bool = True,
     ) -> pd.DataFrame:
         """Fetch traffic data for countlines and format for database ingestion.
         
@@ -321,36 +342,33 @@ class VivacityClient:
             end_time: End of time range
             region_name: Name of the region for tagging
             time_bucket: Aggregation bucket
+            bidirectional: If True, sums directions. If False, preserves 'direction' column.
             
         Returns:
-            DataFrame ready for upsert_counts with columns:
-            timestamp, sensor_id, mode, count, v85, region, source
+            DataFrame ready for ingestion.
         """
         # Fetch counts
-        counts = await self.get_counts(countline_ids, start_time, end_time, time_bucket)
+        counts = await self.get_counts(
+            countline_ids, start_time, end_time, time_bucket, bidirectional=bidirectional
+        )
         
         if not counts:
             return pd.DataFrame()
         
         # Convert to DataFrame
         df = pd.DataFrame(counts)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.rename(columns={"countline_id": "sensor_id"})
+        df["region"] = region_name
+        df["source"] = "vivacity"
         
-        # Aggregate by countline, timestamp, and mode (sum directions)
-        df["timestamp"] = pd.to_datetime(df["from"])
-        df_agg = df.groupby(["countline_id", "timestamp", "mode"]).agg({
-            "count": "sum"
-        }).reset_index()
+        if bidirectional:
+             # Standard format for counterflow.daily_counts compatibility
+             df["v85"] = None
+             return df[["timestamp", "sensor_id", "mode", "count", "v85", "region", "source"]]
         
-        # Rename columns for database
-        df_agg = df_agg.rename(columns={"countline_id": "sensor_id"})
-        df_agg["region"] = region_name
-        df_agg["source"] = "vivacity"
-        df_agg["v85"] = None  # Speed data fetched separately if needed
-        
-        # Reorder columns
-        df_agg = df_agg[["timestamp", "sensor_id", "mode", "count", "v85", "region", "source"]]
-        
-        return df_agg
+        # Preservation of direction for vivacity_traffic_counts
+        return df[["timestamp", "sensor_id", "direction", "mode", "count", "region", "source"]]
 
     async def fetch_region_traffic_with_speed(
         self,
