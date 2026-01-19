@@ -18,12 +18,63 @@ from vivacitypy import VivacityClient
 
 async def main():
     async with VivacityClient(region_code="anytown") as client:
-        # Get sensor metadata
-        sensors = await client.get_countline_metadata()
-        print(f"Found {len(sensors)} sensors")
+        # Get countline metadata
+        countlines = await client.get_countline_metadata()
+        
+        # Get hardware (camera) metadata
+        hardware = await client.get_hardware_metadata()
 
 if __name__ == "__main__":
     asyncio.run(main())
+```
+
+### Metadata Examples
+
+#### 1. Hardware (Camera) Metadata
+Returns physical location and device info.
+
+```python
+hardware = await client.get_hardware_metadata()
+```
+
+**Output Structure:**
+```json
+[
+  {
+    "id": "1001",
+    "name": "Camera-North",
+    "lat": 51.5074,
+    "lon": -0.1278,
+    "project_name": "anytown-smartcity",
+    "hardware_version": "v2"
+  }
+]
+```
+
+#### 2. Countline (Cordon) Metadata
+Returns logical countlines and their association with hardware.
+
+```python
+countlines = await client.get_countline_metadata()
+```
+
+**Output Structure:**
+```json
+[
+  {
+    "id": "55001",
+    "name": "S1_AnyStreet_Northbound",
+    "sensor_name": "S1_AnyStreet",
+    "description": "Main road northbound",
+    "is_speed": true,
+    "geometry": {
+      "type": "LineString",
+      "coordinates": [[-0.1278, 51.5074], [-0.1279, 51.5075]]
+    },
+    "hardware_id": "1001",
+    "viewpoint_id": "2001"
+  }
+]
 ```
 
 ### Fetching Traffic Data
